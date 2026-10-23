@@ -389,6 +389,12 @@ class HealthcareDashboard:
             output.insert(tk.END, f"info(): {p.info()}\n")
             output.insert(tk.END, f"is_adult() [static method]: {Patient.is_adult(p.age)}\n")
             output.insert(tk.END, f"hospital() [class method]: {Patient.hospital()}\n")
+            conn = sqlite3.connect(DB_PATH)
+            conn.execute("INSERT INTO patients (name, age, ward, heart_rate) VALUES (?,?,?,?)",
+                         (p.name, p.age, p.ward, None))
+            conn.commit()
+            conn.close()
+            self.refresh_db_tab()
 
         ttk.Button(frame, text="Create Patient Object", style="Health.TButton",
                    command=run).grid(row=4, column=0, columnspan=2, pady=6)
@@ -589,8 +595,9 @@ class HealthcareDashboard:
             output.insert(tk.END, " | ".join(cols) + "\n")
             output.insert(tk.END, "-" * 40 + "\n")
             for row in rows:
-                output.insert(tk.END, " | ".join(str(v) for v in row) + "\n")
+                output.insert(tk.END, " | ".join("-" if v is None else str(v) for v in row) + "\n")
 
+        self.refresh_db_tab = run
         ttk.Button(frame, text="Run Query", style="Health.TButton", command=run).pack()
 
 
