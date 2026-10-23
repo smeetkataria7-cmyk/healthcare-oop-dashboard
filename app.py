@@ -6,7 +6,9 @@ exception handling+modules+multithreading, collections+functional programming,
 Tkinter GUI shape drawing, SQLite database) using a healthcare case study.
 Each tab = exactly one experiment, nothing added beyond what the experiment asks for.
 """
-import sqlite3
+import json
+import os
+import psycopg2
 import threading
 import time
 import tkinter as tk
@@ -193,7 +195,14 @@ def classify_vitals(vitals_dict):
 # Activity: two tables, >=3 columns each, 50 rows inserted into both,
 # at least 7 SELECT-type commands executed on them.
 # ===================================================================
-DB_PATH = "healthcare.db"
+DB_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "db_config.json")
+with open(DB_CONFIG_PATH, encoding="utf-8") as _cfg:
+    DB_CONFIG = json.load(_cfg)
+
+
+def db_connect(dbname=None):
+    return psycopg2.connect(host=DB_CONFIG["host"], port=DB_CONFIG["port"], user=DB_CONFIG["user"],
+                            password=DB_CONFIG["password"], dbname=dbname or DB_CONFIG["dbname"])
 
 FIRST_NAMES = ["Aman", "Priya", "Rahul", "Sneha", "Arjun", "Neha", "Rohan", "Anjali",
                "Vikram", "Pooja", "Sakshi", "Gaurav", "Pranav", "Sonali", "Kiran",
@@ -204,12 +213,20 @@ DEPARTMENTS = ["Cardiology", "Orthopedics", "Pediatrics", "Neurology", "General 
 
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
+    admin = db_connect("postgres")
+    admin.autocommit = True
+    admin_cur = admin.cursor()
+    admin_cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (DB_CONFIG["dbname"],))
+    if admin_cur.fetchone() is None:
+        admin_cur.execute(f'CREATE DATABASE "{DB_CONFIG["dbname"]}"')
+    admin.close()
+
+    conn = db_connect()
     cur = conn.cursor()
 
     # Table 1: patients (id, name, age, ward, heart_rate)
     cur.execute("""CREATE TABLE IF NOT EXISTS patients (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id SERIAL PRIMARY KEY,
                     name TEXT NOT NULL,
                     age INTEGER,
                     ward TEXT,
@@ -224,11 +241,11 @@ def init_db():
              60 + (i * 7) % 60)
             for i in range(50)
         ]
-        cur.executemany("INSERT INTO patients (name, age, ward, heart_rate) VALUES (?,?,?,?)", patients)
+        cur.executemany("INSERT INTO patients (name, age, ward, heart_rate) VALUES (%s,%s,%s,%s)", patients)
 
     # Table 2: appointments (id, patient_name, doctor, department)
     cur.execute("""CREATE TABLE IF NOT EXISTS appointments (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id SERIAL PRIMARY KEY,
                     patient_name TEXT NOT NULL,
                     doctor TEXT,
                     department TEXT
@@ -241,21 +258,21 @@ def init_db():
              DEPARTMENTS[i % len(DEPARTMENTS)])
             for i in range(50)
         ]
-        cur.executemany("INSERT INTO appointments (patient_name, doctor, department) VALUES (?,?,?)", appointments)
+        cur.executemany("INSERT INTO appointments (patient_name, doctor, department) VALUES (%s,%s,%s)", appointments)
 
     conn.commit()
     conn.close()
 
 
 def run_query(sql):
-    conn = sqlite3.connect(DB_PATH)
+    conn = db_connect()
     cur = conn.cursor()
     cur.execute(sql)
     conn.commit()
     try:
         rows = cur.fetchall()
         cols = [d[0] for d in cur.description] if cur.description else []
-    except sqlite3.Error:
+    except psycopg2.ProgrammingError:
         rows, cols = [], []
     conn.close()
     return cols, rows
@@ -389,8 +406,8 @@ class HealthcareDashboard:
             output.insert(tk.END, f"info(): {p.info()}\n")
             output.insert(tk.END, f"is_adult() [static method]: {Patient.is_adult(p.age)}\n")
             output.insert(tk.END, f"hospital() [class method]: {Patient.hospital()}\n")
-            conn = sqlite3.connect(DB_PATH)
-            conn.execute("INSERT INTO patients (name, age, ward, heart_rate) VALUES (?,?,?,?)",
+            conn = db_connect()
+            conn.cursor().execute("INSERT INTO patients (name, age, ward, heart_rate) VALUES (%s,%s,%s,%s)",
                          (p.name, p.age, p.ward, None))
             conn.commit()
             conn.close()
