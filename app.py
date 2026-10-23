@@ -427,22 +427,22 @@ class HealthcareDashboard:
                               highlightbackground="#99f6e4", highlightthickness=1, relief="flat")
         listbox.pack(pady=10)
 
-        def colorize():
-            for i, bed in enumerate(icu_beds):
+        def colorize(beds):
+            for i, bed in enumerate(beds):
                 listbox.itemconfig(i, fg=CORAL if bed.critical else "#15803d")
 
         def show_beds():
             listbox.delete(0, tk.END)
             for bed in icu_beds:
                 listbox.insert(tk.END, str(bed))
-            colorize()
+            colorize(icu_beds)
 
         def show_critical():
             listbox.delete(0, tk.END)
-            for bed in icu_beds:
-                if bed.critical:
-                    listbox.insert(tk.END, str(bed))
-            colorize()
+            critical = [bed for bed in icu_beds if bed.critical]
+            for bed in critical:
+                listbox.insert(tk.END, str(bed))
+            colorize(critical)
 
         btns = ttk.Frame(frame, style="Card.TFrame")
         btns.pack()
@@ -579,9 +579,9 @@ class HealthcareDashboard:
 
     # ---- Experiment 8 ----
     def build_exp8(self, notebook):
-        frame = self._tab(notebook, "8. SQLite Database",
+        frame = self._tab(notebook, "8. Database",
                           "Develop a Database-Driven System Using SQLite",
-                          "Patient and appointment records: patients and appointments are stored in SQLite tables. SELECT queries with WHERE, ORDER BY, LIKE, BETWEEN, GROUP BY and aggregate functions answer staff questions.")
+                          "Patient and appointment records: patients and appointments are stored in PostgreSQL tables. SELECT queries with WHERE, ORDER BY, LIKE, BETWEEN, GROUP BY and aggregate functions answer staff questions.")
 
         init_db()
 
